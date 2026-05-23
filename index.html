@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Каталог конкурсних робіт</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Каталог конкурсних робіт</h1>
+      <p class="subtitle">«О краю мій, Підгір'я ти прекрасне...»</p>
+    </div>
+    <nav id="nav" class="nav hidden">
+      <span id="navUser" class="nav-user"></span>
+      <button id="navLogout" class="link-btn">Вийти</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- LOGIN -->
+    <section id="loginView" class="view">
+      <div class="card centered">
+        <h2>Вхід для жюрі</h2>
+        <p class="muted">Введіть email та PIN-код, надані адміністратором</p>
+        <form id="loginForm">
+          <input id="loginEmail" type="email" placeholder="email@example.com" required autocomplete="email" />
+          <div class="pin-inputs" id="pinInputs" aria-label="6-значний PIN">
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="one-time-code" aria-label="Цифра 1" />
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Цифра 2" />
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Цифра 3" />
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Цифра 4" />
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Цифра 5" />
+            <input class="pin-cell" type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Цифра 6" />
+          </div>
+          <button type="submit" class="primary">Увійти</button>
+        </form>
+        <p id="loginError" class="error"></p>
+        <details class="admin-toggle">
+          <summary>Адмінка</summary>
+          <form id="adminForm" class="admin-form">
+            <input id="adminPassword" type="password" placeholder="Пароль адміністратора" required />
+            <button type="submit" class="primary">Увійти як адмін</button>
+          </form>
+          <p id="adminError" class="error"></p>
+        </details>
+      </div>
+    </section>
+
+    <!-- CATALOG -->
+    <section id="catalogView" class="view hidden">
+      <div class="catalog-toolbar">
+        <div class="stats" id="catalogStats"></div>
+        <div class="filters">
+          <select id="filterCategory">
+            <option value="">Усі категорії</option>
+          </select>
+          <select id="filterTechnique">
+            <option value="">Усі техніки</option>
+          </select>
+          <input id="filterSearch" type="search" placeholder="Пошук за автором, назвою, закладом..." />
+          <label class="checkbox">
+            <input type="checkbox" id="filterMyLiked" />
+            <span>Тільки мої лайки</span>
+          </label>
+        </div>
+      </div>
+      <div id="catalogGrid" class="grid"></div>
+      <p id="catalogEmpty" class="muted centered hidden">Нічого не знайдено</p>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="adminView" class="view hidden">
+      <div class="admin-header">
+        <h2>Адмінка — рейтинг робіт</h2>
+        <div class="admin-actions">
+          <button id="exportCsv" class="primary">Експорт CSV</button>
+          <button id="reloadAdmin" class="link-btn">Оновити</button>
+        </div>
+      </div>
+      <div id="adminStats" class="admin-stats"></div>
+      <h3>Рейтинг робіт</h3>
+      <div class="table-wrap">
+        <table id="rankingTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Робота</th>
+              <th>Автор</th>
+              <th>Назва</th>
+              <th>Категорія</th>
+              <th>Техніка</th>
+              <th>Заклад</th>
+              <th>Лайків</th>
+            </tr>
+          </thead>
+          <tbody id="rankingBody"></tbody>
+        </table>
+      </div>
+      <h3 style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <span>Активність жюрі</span>
+        <button id="togglePins" class="link-btn">Показати PIN-и</button>
+      </h3>
+      <div class="table-wrap">
+        <table id="judgesTable">
+          <thead>
+            <tr>
+              <th>Жюрі</th>
+              <th>Email</th>
+              <th class="pin-col hidden">PIN</th>
+              <th>Поставлено лайків</th>
+            </tr>
+          </thead>
+          <tbody id="judgesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox hidden">
+    <button class="lightbox-close" id="lightboxClose">&times;</button>
+    <img id="lightboxImg" alt="" />
+    <div id="lightboxCaption" class="lightbox-caption"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
