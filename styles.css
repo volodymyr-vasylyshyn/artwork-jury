@@ -235,6 +235,149 @@ button.primary:hover:not(:disabled) {
   cursor: pointer;
 }
 
+/* Catalog header (заміна хлібних крихт) */
+.catalog-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.45rem 1rem 0.45rem 0.85rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  box-shadow: var(--shadow);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.back-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-light);
+}
+.back-btn .back-arrow {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.catalog-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.catalog-header-title h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.catalog-header-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Technique chips */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip .chip-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(196, 69, 54, 0.3);
+}
+.chip.active:hover { color: #fff; }
+.chip.active .chip-count { color: rgba(255, 255, 255, 0.8); }
+
+/* Category cards (великі вікові категорії) */
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.category-card {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+.category-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  border-color: var(--accent-light);
+}
+
+.folder-preview {
+  aspect-ratio: 16 / 10;
+  background: #efe9e1;
+  display: grid;
+  gap: 2px;
+}
+.folder-preview span {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: block;
+}
+.folder-preview.cells-1 { grid-template-columns: 1fr; }
+.folder-preview.cells-2 { grid-template-columns: 1fr 1fr; }
+.folder-preview.cells-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.folder-preview.cells-3 span:first-child { grid-row: span 2; }
+.folder-preview.cells-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.folder-preview.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  opacity: 0.55;
+}
+
+.category-info {
+  padding: 1rem 1.25rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.category-name {
+  font-weight: 600;
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+.category-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.category-liked { color: var(--accent); }
+
 /* Grid */
 .grid {
   display: grid;
@@ -258,6 +401,7 @@ button.primary:hover:not(:disabled) {
 }
 
 .tile-img {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   background: #f0ece6;
@@ -266,6 +410,46 @@ button.primary:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+/* Результати */
+.result-category { margin-bottom: 2.5rem; }
+.result-cat-title {
+  margin: 0 0 1rem;
+  font-size: 1.3rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+}
+.result-cat-title .muted { font-size: 0.9rem; font-weight: 400; }
+
+.result-rank {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(42, 38, 32, 0.85);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.result-rank.medal-1 { background: #b8860b; }
+.result-rank.medal-2 { background: #708090; }
+.result-rank.medal-3 { background: #a0522d; }
+
+.likes-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .tile-img img {
@@ -424,12 +608,39 @@ tbody tr:hover { background: #faf8f4; }
 .rank-2 td:first-child { color: #708090; font-weight: 700; }
 .rank-3 td:first-child { color: #a0522d; font-weight: 700; }
 
+.thumb-wrap {
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  overflow: hidden;
+}
 td .thumb {
   width: 60px;
   height: 60px;
   object-fit: cover;
   border-radius: 4px;
   display: block;
+  transition: transform 0.2s;
+}
+
+.rotate-ctrls {
+  display: flex;
+  gap: 0.3rem;
+}
+.rotate-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text);
+}
+.rotate-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Lightbox */
@@ -450,6 +661,13 @@ td .thumb {
   max-height: 85vh;
   object-fit: contain;
   border-radius: 6px;
+  transition: transform 0.2s;
+}
+/* при повороті на 90/270 міняємо обмеження сторін місцями,
+   щоб картинка вписалась у екран */
+.lightbox img.rotated {
+  max-width: 85vh;
+  max-height: 95vw;
 }
 
 .lightbox-caption {
@@ -476,6 +694,8 @@ td .thumb {
   .brand h1 { font-size: 1.05rem; }
   main { padding: 1rem; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; }
+  .folder-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  .catalog-header-title h2 { font-size: 1.2rem; }
   .catalog-toolbar { flex-direction: column; align-items: stretch; }
   .filters { width: 100%; }
   .filters input[type="search"] { min-width: 0; flex: 1; }

@@ -11,8 +11,46 @@ const state = {
   adminPassword: null,
   artworks: [],
   adminData: null,
-  filters: { category: '', technique: '', search: '', myLikedOnly: false }
+  filters: { search: '', myLikedOnly: false },
+  // навігація по папках: null = верхній рівень (вікові категорії)
+  nav: { category: null, technique: null }
 };
+
+// мітки для робіт без заповненого поля
+const NO_CATEGORY = 'Без категорії';
+const NO_TECHNIQUE = 'Інше';
+function artCategory(a) { return (a.category && a.category.trim()) || NO_CATEGORY; }
+
+// ---- НОРМАЛІЗАЦІЯ ТЕХНІК ----
+// Сирі значення з форми дуже різні (регістр, пунктуація, розміри, матеріали).
+// Зводимо їх до канонічного набору технік за ключовими словами.
+// Порядок правил важливий: перше співпадіння виграє.
+const TECHNIQUE_RULES = [
+  { name: 'Ткацтво (гобелен)',     match: /гобелен|ткацтв/i },
+  { name: 'Валяння',               match: /валянн/i },
+  { name: 'Кераміка',              match: /керамік|ліпк/i },
+  { name: 'Малярство на склі',     match: /скл/i },
+  { name: 'Петриківський розпис',  match: /петриків/i },
+  { name: 'Косівський розпис',     match: /косівськ/i },
+  { name: 'Колаж',                 match: /колаж/i },
+  { name: 'Бісер / метал',         match: /бісер|метал/i },
+  { name: 'Змішана техніка',       match: /змішан/i },
+  { name: 'Графіка',               match: /графік|олівец|олівц|ручк|гелев|маркер/i },
+  { name: 'Живопис',               match: /живопис|гуаш|акварел|акрил|темпер|папір/i },
+];
+
+function normalizeTechnique(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return NO_TECHNIQUE;
+  for (const rule of TECHNIQUE_RULES) {
+    if (rule.match.test(s)) return rule.name;
+  }
+  // якщо нічого не підійшло — хоча б приводимо регістр/пробіли до спільного вигляду
+  const clean = s.replace(/\s+/g, ' ');
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
+
+function artTechnique(a) { return normalizeTechnique(a.technique); }
 
 // ===== API HELPERS =====
 async function callApi(action, params = {}) {
@@ -36,6 +74,13 @@ function driveImgUrl(fileId, width = 800) {
   if (!fileId) return null;
   // lh3.googleusercontent.com — стабільніший за uc?id для embed
   return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
+}
+
+// нормалізований кут + inline-стиль для повороту зображення
+function normRot(rot) { return ((parseInt(rot, 10) || 0) % 360 + 360) % 360; }
+function rotStyle(rot) {
+  const r = normRot(rot);
+  return r ? ` style="transform: rotate(${r}deg)"` : '';
 }
 
 // ===== VIEWS =====
@@ -230,40 +275,20 @@ async function enterCatalog() {
   state.artworks = res.artworks;
   state.judgeName = (res.judge && res.judge.name) || state.email;
   setNavUser(state.judgeName);
-  populateFilters();
+  state.nav = { category: null, technique: null };
   renderCatalog();
 }
 
-function populateFilters() {
-  const cats = new Set();
-  const techs = new Set();
-  state.artworks.forEach(a => {
-    if (a.category) cats.add(a.category);
-    if (a.technique) techs.add(a.technique);
-  });
-  const catSel = document.getElementById('filterCategory');
-  const techSel = document.getElementById('filterTechnique');
-  // зберігаємо плейсхолдер
-  catSel.innerHTML = '<option value="">Усі категорії</option>';
-  techSel.innerHTML = '<option value="">Усі техніки</option>';
-  [...cats].sort().forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    catSel.appendChild(o);
-  });
-  [...techs].sort().forEach(t => {
-    const o = document.createElement('option');
-    o.value = t; o.textContent = t;
-    techSel.appendChild(o);
-  });
+// чи активний глобальний режим (пошук/мої лайки) — тоді показуємо плаский результат
+function isSearchMode() {
+  return state.filters.search.trim() !== '' || state.filters.myLikedOnly;
 }
 
-function filterArtworks() {
-  const { category, technique, search, myLikedOnly } = state.filters;
-  const s = search.trim().toLowerCase();
-  return state.artworks.filter(a => {
-    if (category && a.category !== category) return false;
-    if (technique && a.technique !== technique) return false;
+// застосувати глобальні фільтри (пошук + мої лайки) до набору робіт
+function applyGlobalFilters(list) {
+  const s = state.filters.search.trim().toLowerCase();
+  const { myLikedOnly } = state.filters;
+  return list.filter(a => {
     if (myLikedOnly && !a.my_liked) return false;
     if (s) {
       const hay = `${a.author} ${a.title} ${a.school} ${a.teacher} ${a.city}`.toLowerCase();
@@ -273,37 +298,173 @@ function filterArtworks() {
   });
 }
 
+// згрупувати роботи за ключем (через функцію-екстрактор)
+function groupBy(list, keyFn) {
+  const map = new Map();
+  list.forEach(a => {
+    const k = keyFn(a);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(a);
+  });
+  return map;
+}
+
 function renderCatalog() {
+  const stats = document.getElementById('catalogStats');
+  const myLikes = state.artworks.filter(a => a.my_liked).length;
+  stats.innerHTML = `Усього робіт: <strong>${state.artworks.length}</strong> · Моїх лайків: <strong>${myLikes}</strong>`;
+
+  if (isSearchMode()) {
+    renderSearchResults();
+  } else if (state.nav.category === null) {
+    renderCategoryCards();
+  } else {
+    renderCategoryPage();
+  }
+}
+
+// ---- хедер каталогу (замість хлібних крихт) ----
+// back: { label, onClick } або null; title: рядок; sub: рядок-підпис або ''
+function renderHeader(back, title, sub) {
+  const h = document.getElementById('catalogHeader');
+  if (!title && !back) { h.classList.add('hidden'); h.innerHTML = ''; return; }
+  h.classList.remove('hidden');
+  h.innerHTML = `
+    ${back ? `<button class="back-btn" type="button"><span class="back-arrow">‹</span> ${esc(back.label)}</button>` : ''}
+    <div class="catalog-header-title">
+      <h2>${esc(title)}</h2>
+      ${sub ? `<span class="catalog-header-sub">${esc(sub)}</span>` : ''}
+    </div>`;
+  if (back) h.querySelector('.back-btn').addEventListener('click', back.onClick);
+}
+
+// колаж-прев'ю для картки (до 4 зображень)
+function folderPreviewHtml(items) {
+  const imgs = items.filter(a => a.file_id).slice(0, 4);
+  if (imgs.length === 0) return `<div class="folder-preview empty">🎨</div>`;
+  const cells = imgs.map(a =>
+    `<span style="background-image:url('${driveImgUrl(a.file_id, 300)}')"></span>`
+  ).join('');
+  return `<div class="folder-preview cells-${imgs.length}">${cells}</div>`;
+}
+
+function showSections({ folders = false, chips = false, grid = false }) {
+  document.getElementById('folderGrid').classList.toggle('hidden', !folders);
+  document.getElementById('chipRow').classList.toggle('hidden', !chips);
+  document.getElementById('catalogGrid').classList.toggle('hidden', !grid);
+}
+
+// ---- рівень 1: вікові категорії як великі картки ----
+function renderCategoryCards() {
+  renderHeader(null, '', '');
+  showSections({ folders: true });
+  document.getElementById('catalogEmpty').classList.add('hidden');
+  const fg = document.getElementById('folderGrid');
+
+  const groups = [...groupBy(state.artworks, artCategory).entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'uk'));
+
+  fg.innerHTML = groups.map(([cat, items]) => {
+    const liked = items.filter(a => a.my_liked).length;
+    return `
+    <button class="category-card" data-cat="${escAttr(cat)}">
+      ${folderPreviewHtml(items)}
+      <div class="category-info">
+        <div class="category-name">${esc(cat)}</div>
+        <div class="category-meta">
+          <span>${items.length} ${pluralWorks(items.length)}</span>
+          ${liked ? `<span class="category-liked">♥ ${liked}</span>` : ''}
+        </div>
+      </div>
+    </button>`;
+  }).join('');
+
+  fg.querySelectorAll('.category-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.nav = { category: btn.dataset.cat, technique: '' };
+      renderCatalog();
+    });
+  });
+}
+
+function pluralWorks(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'робота';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return 'роботи';
+  return 'робіт';
+}
+
+// ---- рівень 2: сторінка категорії — чипи технік + сітка робіт ----
+function renderCategoryPage() {
+  const cat = state.nav.category;
+  const inCat = state.artworks.filter(a => artCategory(a) === cat);
+
+  renderHeader(
+    { label: 'Категорії', onClick: () => { state.nav = { category: null, technique: null }; renderCatalog(); } },
+    cat,
+    `${inCat.length} ${pluralWorks(inCat.length)}`
+  );
+
+  // чипи технік
+  const techGroups = [...groupBy(inCat, artTechnique).entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'uk'));
+
+  const active = state.nav.technique || '';
+  const chips = [`<button class="chip ${active === '' ? 'active' : ''}" data-tech="">Усі <span class="chip-count">(${inCat.length})</span></button>`]
+    .concat(techGroups.map(([tech, items]) =>
+      `<button class="chip ${active === tech ? 'active' : ''}" data-tech="${escAttr(tech)}">${esc(tech)} <span class="chip-count">(${items.length})</span></button>`
+    ));
+
+  const chipRow = document.getElementById('chipRow');
+  chipRow.innerHTML = chips.join('');
+  chipRow.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.nav.technique = btn.dataset.tech;
+      renderCatalog();
+    });
+  });
+
+  showSections({ chips: true, grid: true });
+  const items = active ? inCat.filter(a => artTechnique(a) === active) : inCat;
+  paintGrid(items);
+}
+
+// ---- плаский результат пошуку/лайків ----
+function renderSearchResults() {
+  const items = applyGlobalFilters(state.artworks);
+  const title = state.filters.myLikedOnly && state.filters.search.trim() === ''
+    ? 'Мої лайки'
+    : 'Результати пошуку';
+  renderHeader(null, title, `${items.length} ${pluralWorks(items.length)}`);
+  showSections({ grid: true });
+  paintGrid(items);
+}
+
+// спільний рендер сітки робіт
+function paintGrid(items) {
   const grid = document.getElementById('catalogGrid');
   const empty = document.getElementById('catalogEmpty');
-  const stats = document.getElementById('catalogStats');
-  const filtered = filterArtworks();
-  const myLikes = state.artworks.filter(a => a.my_liked).length;
 
-  stats.innerHTML = `Робіт: <strong>${filtered.length}</strong> із ${state.artworks.length} · Моїх лайків: <strong>${myLikes}</strong>`;
-
-  if (filtered.length === 0) {
+  if (items.length === 0) {
     grid.innerHTML = '';
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
+  grid.innerHTML = items.map(a => tileHtml(a)).join('');
 
-  grid.innerHTML = filtered.map(a => tileHtml(a)).join('');
-
-  // bind events
   grid.querySelectorAll('.like-btn').forEach(btn => {
     btn.addEventListener('click', onLikeClick);
   });
   grid.querySelectorAll('.tile-img[data-fileid]').forEach(el => {
-    el.addEventListener('click', () => openLightbox(el.dataset.fileid, el.dataset.caption));
+    el.addEventListener('click', () => openLightbox(el.dataset.fileid, el.dataset.caption, el.dataset.rot));
   });
 }
 
 function tileHtml(a) {
   const img = a.file_id
-    ? `<div class="tile-img" data-fileid="${a.file_id}" data-caption="${escAttr(a.author + ' — ' + a.title)}">
-         <img loading="lazy" src="${driveImgUrl(a.file_id, 600)}" alt="${escAttr(a.title)}" onerror="this.parentElement.classList.add('no-image'); this.parentElement.innerHTML='Зображення недоступне'" />
+    ? `<div class="tile-img" data-fileid="${a.file_id}" data-rot="${normRot(a.rotation)}" data-caption="${escAttr(a.author + ' — ' + a.title)}">
+         <img loading="lazy" src="${driveImgUrl(a.file_id, 600)}" alt="${escAttr(a.title)}"${rotStyle(a.rotation)} onerror="this.parentElement.classList.add('no-image'); this.parentElement.innerHTML='Зображення недоступне'" />
        </div>`
     : `<div class="tile-img no-image">Немає зображення</div>`;
 
@@ -347,12 +508,6 @@ async function onLikeClick(e) {
 }
 
 // Filters
-['filterCategory', 'filterTechnique'].forEach(id => {
-  document.getElementById(id).addEventListener('change', e => {
-    state.filters[id === 'filterCategory' ? 'category' : 'technique'] = e.target.value;
-    renderCatalog();
-  });
-});
 document.getElementById('filterSearch').addEventListener('input', e => {
   state.filters.search = e.target.value;
   renderCatalog();
@@ -367,14 +522,20 @@ const lightbox = document.getElementById('lightbox');
 const lightboxImg = document.getElementById('lightboxImg');
 const lightboxCap = document.getElementById('lightboxCaption');
 
-function openLightbox(fileId, caption) {
+function openLightbox(fileId, caption, rot) {
   lightboxImg.src = driveImgUrl(fileId, 1600);
   lightboxCap.textContent = caption || '';
+  const r = normRot(rot);
+  lightboxImg.style.transform = r ? `rotate(${r}deg)` : '';
+  // для 90/270 міняємо обмеження сторін, щоб картинка не вилазила за екран
+  lightboxImg.classList.toggle('rotated', r === 90 || r === 270);
   lightbox.classList.remove('hidden');
 }
 function closeLightbox() {
   lightbox.classList.add('hidden');
   lightboxImg.src = '';
+  lightboxImg.style.transform = '';
+  lightboxImg.classList.remove('rotated');
 }
 document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
 lightbox.addEventListener('click', e => {
@@ -385,6 +546,27 @@ document.addEventListener('keydown', e => {
 });
 
 // ===== ADMIN =====
+// Повертає роботу на delta градусів, зберігає на бекенді (для всіх жюрі)
+async function rotateArtwork(id, delta) {
+  const a = state.adminData && state.adminData.ranking.find(x => x.id === id);
+  if (!a) return;
+  const prev = normRot(a.rotation);
+  const next = normRot(prev + delta);
+  // оптимістично оновлюємо UI
+  a.rotation = next;
+  renderAdmin();
+  const res = await callApi('admin_set_rotation', {
+    password: state.adminPassword,
+    artwork_id: id,
+    rotation: next
+  });
+  if (!res.ok) {
+    a.rotation = prev; // відкат
+    renderAdmin();
+    alert(res.error || 'Не вдалося зберегти поворот');
+  }
+}
+
 function renderAdmin() {
   const data = state.adminData;
   if (!data) return;
@@ -402,11 +584,18 @@ function renderAdmin() {
     const rank = i + 1;
     const cls = rank <= 3 ? `rank-${rank}` : '';
     const thumb = a.file_id
-      ? `<img class="thumb" src="${driveImgUrl(a.file_id, 120)}" alt="" onerror="this.style.display='none'" />`
+      ? `<div class="thumb-wrap"><img class="thumb" src="${driveImgUrl(a.file_id, 120)}" alt=""${rotStyle(a.rotation)} onerror="this.style.display='none'" /></div>`
+      : '<span class="muted">—</span>';
+    const rotateCell = a.file_id
+      ? `<div class="rotate-ctrls">
+           <button class="rotate-btn" data-id="${escAttr(a.id)}" data-delta="-90" title="Повернути проти годинникової">↺</button>
+           <button class="rotate-btn" data-id="${escAttr(a.id)}" data-delta="90" title="Повернути за годинниковою">↻</button>
+         </div>`
       : '<span class="muted">—</span>';
     return `<tr class="${cls}">
       <td>${rank}</td>
       <td>${thumb}</td>
+      <td>${rotateCell}</td>
       <td>${esc(a.author)}</td>
       <td>${esc(a.title)}</td>
       <td>${esc(a.category)}</td>
@@ -415,6 +604,10 @@ function renderAdmin() {
       <td><strong>${a.likes}</strong></td>
     </tr>`;
   }).join('');
+
+  tbody.querySelectorAll('.rotate-btn').forEach(btn => {
+    btn.addEventListener('click', () => rotateArtwork(btn.dataset.id, parseInt(btn.dataset.delta, 10)));
+  });
 
   // judges table
   const showPins = document.getElementById('togglePins').dataset.showing === '1';
@@ -466,6 +659,91 @@ document.getElementById('reloadAdmin').addEventListener('click', async (e) => {
   }
   e.target.disabled = false;
   e.target.textContent = 'Оновити';
+});
+
+// ===== RESULTS (по категоріях, за лайками) =====
+function renderResults(ranking) {
+  const wrap = document.getElementById('resultsContent');
+  if (!ranking || !ranking.length) {
+    wrap.innerHTML = '<p class="muted centered">Немає робіт для показу.</p>';
+    return;
+  }
+
+  const groups = [...groupBy(ranking, artCategory).entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'uk'));
+
+  wrap.innerHTML = groups.map(([cat, items]) => {
+    const sorted = items.slice().sort((a, b) => b.likes - a.likes);
+    const tiles = sorted.map((a, i) => {
+      const rank = i + 1;
+      const medal = rank <= 3 ? `medal-${rank}` : '';
+      const img = a.file_id
+        ? `<div class="tile-img" data-fileid="${a.file_id}" data-rot="${normRot(a.rotation)}" data-caption="${escAttr(a.author + ' — ' + a.title)}">
+             <img loading="lazy" src="${driveImgUrl(a.file_id, 600)}" alt="${escAttr(a.title)}"${rotStyle(a.rotation)} onerror="this.parentElement.classList.add('no-image'); this.parentElement.innerHTML='Зображення недоступне'" />
+             <span class="result-rank ${medal}">${rank}</span>
+           </div>`
+        : `<div class="tile-img no-image"><span class="result-rank ${medal}">${rank}</span>Немає зображення</div>`;
+      return `
+        <div class="tile">
+          ${img}
+          <div class="tile-body">
+            <div class="tile-title">${esc(a.title) || '—'}</div>
+            <div class="tile-author">${esc(a.author)}</div>
+            <div class="tile-meta">
+              ${a.technique ? `<span>${esc(a.technique)}</span>` : ''}
+              ${a.teacher ? `<span>Вчитель: ${esc(a.teacher)}</span>` : ''}
+              ${a.school ? `<span>${esc(a.school)}</span>` : ''}
+            </div>
+          </div>
+          <div class="tile-footer">
+            <span class="muted" style="font-size:0.75rem;">${esc(a.city || '')}</span>
+            <span class="likes-badge">♥ ${a.likes}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <section class="result-category">
+        <h3 class="result-cat-title">${esc(cat)} <span class="muted">· ${items.length} ${pluralWorks(items.length)}</span></h3>
+        <div class="grid">${tiles}</div>
+      </section>`;
+  }).join('');
+
+  // клік на зображення → лайтбокс
+  wrap.querySelectorAll('.tile-img[data-fileid]').forEach(el => {
+    el.addEventListener('click', () => openLightbox(el.dataset.fileid, el.dataset.caption, el.dataset.rot));
+  });
+}
+
+// звідки відкрили результати — туди й повертаємось
+function openResultsView(origin, ranking) {
+  state.resultsOrigin = origin;
+  document.querySelector('#resultsBack .back-label').textContent =
+    origin === 'admin' ? 'До адмінки' : 'Назад';
+  renderResults(ranking);
+  showView('results');
+}
+
+// з адмінки — беремо вже завантажені дані
+document.getElementById('openResults').addEventListener('click', () => {
+  openResultsView('admin', state.adminData && state.adminData.ranking);
+});
+
+// публічно (зі сторінки входу) — окремий запит без пароля
+document.getElementById('openResultsPublic').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Завантажую…';
+  const res = await callApi('public_results');
+  btn.disabled = false;
+  btn.textContent = old;
+  if (!res.ok) { alert(res.error || 'Не вдалося завантажити результати'); return; }
+  openResultsView('login', res.ranking);
+});
+
+document.getElementById('resultsBack').addEventListener('click', () => {
+  showView(state.resultsOrigin || 'login');
 });
 
 document.getElementById('exportCsv').addEventListener('click', async () => {
